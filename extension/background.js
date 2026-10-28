@@ -1,10 +1,15 @@
 'use strict';
 
+importScripts('i18n.js');
+
+const I18N = self.FJI18N;
+
 const DEFAULT_SETTINGS = {
   enabled: true,
   sound: true,
   systemNotification: true,
   showStatus: true,
+  language: 'auto',
   keywords: []
 };
 
@@ -60,17 +65,20 @@ function truncate(text, max) {
   return value.length > max ? value.slice(0, max - 1) + '…' : value;
 }
 
-function notify(payload) {
+function notify(payload, lang) {
   const headline = truncate(payload.headline, 220);
   const time = payload.time ? String(payload.time) : '';
+  const tr = (key, vars) => I18N.t(lang, key, vars);
   chrome.notifications.create(
     'fj-red-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
     {
       type: 'basic',
       iconUrl: ICON,
-      title: '🔴 FinancialJuice 红色新闻',
+      title: tr('notificationTitle'),
       message: headline,
-      contextMessage: time ? time + ' · 点击打开 FinancialJuice' : '点击打开 FinancialJuice',
+      contextMessage: time
+        ? tr('notificationContext', { time: time })
+        : tr('notificationContextNoTime'),
       priority: 2,
       requireInteraction: false,
       silent: true
@@ -106,8 +114,9 @@ async function handleAlert(payload) {
   const settings = await getSettings();
   if (settings.enabled === false) return;
 
+  const lang = I18N.resolve(payload.language || settings.language);
   const wantsNotify = payload.systemNotification !== false && settings.systemNotification !== false;
-  if (wantsNotify) notify(payload);
+  if (wantsNotify) notify(payload, lang);
   flashBadge();
   await rememberAlert(payload);
 
@@ -127,9 +136,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'FJ_TEST') {
-    handleAlert({
-      headline: '测试告警：红色新闻监控已生效',
-      time: new Date().toLocaleTimeString('zh-CN', { hour12: false })
+    getSettings().then((settings) => {
+      const lang = I18N.resolve(settings.language);
+      return handleAlert({
+        headline: I18N.t(lang, 'testHeadline'),
+        time: new Date().toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour12: false }),
+        language: settings.language
+      });
     }).then(
       () => sendResponse({ ok: true }),
       (err) => sendResponse({ ok: false, error: String(err) })

@@ -5,9 +5,11 @@ const DEFAULTS = {
   sound: true,
   systemNotification: true,
   showStatus: true,
+  language: 'auto',
   keywords: []
 };
 
+const I18N = window.FJI18N;
 const $ = (id) => document.getElementById(id);
 const FJ_PATTERN = /^https?:\/\/(www\.)?financialjuice\.com\//i;
 
@@ -20,26 +22,60 @@ function normalize(raw) {
   let keywords = raw.keywords;
   if (typeof keywords === 'string') keywords = keywords.split(/[,，\n]+/);
   if (!Array.isArray(keywords)) keywords = [];
+
+  let language = raw.language;
+  if (language !== 'en' && language !== 'zh') language = 'auto';
+
   return {
     enabled: raw.enabled !== false,
     sound: raw.sound !== false,
     systemNotification: raw.systemNotification !== false,
     showStatus: raw.showStatus !== false,
+    language: language,
     keywords: keywords.map((k) => String(k).trim()).filter(Boolean)
   };
 }
 
+function lang() {
+  return I18N.resolve(settings.language);
+}
+
+function tr(key, vars) {
+  return I18N.t(lang(), key, vars);
+}
+
+function applyTranslations() {
+  const l = lang();
+  document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en';
+
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = tr(el.getAttribute('data-i18n'));
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+    el.placeholder = tr(el.getAttribute('data-i18n-placeholder'));
+  });
+
+  const selector = $('language');
+  const languageLabel = tr('language');
+  selector.title = languageLabel;
+  selector.setAttribute('aria-label', languageLabel);
+  document.title = tr('extName');
+}
+
+function updateKeywordHelp() {
+  const hasKeywords = settings.keywords.length > 0;
+  $('keywordHelp').textContent = tr(hasKeywords ? 'keywordHelpFiltered' : 'keywordHelpAll');
+}
+
 function render() {
+  applyTranslations();
+  $('language').value = settings.language;
   $('enabled').checked = settings.enabled;
   $('sound').checked = settings.sound;
   $('systemNotification').checked = settings.systemNotification;
   $('showStatus').checked = settings.showStatus;
   $('keywords').value = settings.keywords.join(', ');
-
-  const hasKeywords = settings.keywords.length > 0;
-  $('keywordHelp').textContent = hasKeywords
-    ? '只有标题包含这些关键词的红色新闻才会告警。'
-    : '留空时，任何新出现的红色新闻都会告警。';
+  updateKeywordHelp();
 }
 
 function save() {
@@ -50,18 +86,28 @@ function save() {
 }
 
 function readForm() {
+  const previousLanguage = settings.language;
   settings = normalize({
     enabled: $('enabled').checked,
     sound: $('sound').checked,
     systemNotification: $('systemNotification').checked,
     showStatus: $('showStatus').checked,
+    language: $('language').value,
     keywords: $('keywords').value
   });
-  render();
+  applyTranslations();
+  $('language').value = settings.language;
+  updateKeywordHelp();
   save();
+
+  if (previousLanguage !== settings.language) {
+    $('status').textContent = tr('checking');
+    refreshLastAlert();
+    refreshStatus();
+  }
 }
 
-['enabled', 'sound', 'systemNotification', 'showStatus'].forEach((id) => {
+['enabled', 'sound', 'systemNotification', 'showStatus', 'language'].forEach((id) => {
   $(id).addEventListener('change', readForm);
 });
 $('keywords').addEventListener('input', readForm);
@@ -74,7 +120,7 @@ function setStatus(text, state) {
 function formatTime(ts) {
   if (!ts) return '—';
   try {
-    return new Date(ts).toLocaleString('zh-CN', {
+    return new Date(ts).toLocaleString(lang() === 'zh' ? 'zh-CN' : 'en-US', {
       month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
     });
   } catch (err) {
@@ -87,7 +133,7 @@ async function refreshStatus() {
   activeTab = tabs && tabs[0];
 
   if (!activeTab || !FJ_PATTERN.test(activeTab.url || '')) {
-    setStatus('请先打开 financialjuice.com/home', 'off');
+    setStatus(tr('openFirst'), 'off');
     $('test').disabled = true;
     return;
   }
@@ -96,14 +142,15 @@ async function refreshStatus() {
   try {
     const result = await chrome.tabs.sendMessage(activeTab.id, { type: 'FJ_GET_STATUS' });
     if (result && result.ok) {
-      const bits = [];
-      bits.push(result.enabled ? '监控中' : '已暂停');
-      bits.push('已扫描 ' + result.items + ' 条');
-      if (result.alerts) bits.push('已告警 ' + result.alerts + ' 条');
+      const bits = [
+        result.enabled ? tr('monitoring') : tr('paused'),
+        tr('scanned', { n: result.items })
+      ];
+      if (result.alerts) bits.push(tr('alerts', { n: result.alerts }));
       setStatus(bits.join(' · '), result.enabled ? (result.alerts ? 'hot' : '') : 'off');
     }
   } catch (err) {
-    setStatus('页面尚未连接，请刷新 FinancialJuice 页面', 'off');
+    setStatus(tr('notConnected'), 'off');
   }
 }
 
@@ -114,7 +161,7 @@ async function refreshLastAlert() {
     $('last').textContent = last.headline;
     $('lastTime').textContent = formatTime(last.at);
   } else {
-    $('last').textContent = '还没有捕获到红色新闻';
+    $('last').textContent = tr('noAlerts');
     $('lastTime').textContent = '—';
   }
 }
@@ -124,10 +171,10 @@ $('test').addEventListener('click', async () => {
   $('test').disabled = true;
   try {
     await chrome.tabs.sendMessage(activeTab.id, { type: 'FJ_TEST' });
-    setStatus('测试告警已发送 · 查看页面横幅', 'hot');
+    setStatus(tr('testSent'), 'hot');
     setTimeout(() => { $('test').disabled = false; refreshStatus(); }, 2200);
   } catch (err) {
-    setStatus('测试失败，请刷新页面后重试', 'off');
+    setStatus(tr('testFailed'), 'off');
     $('test').disabled = false;
   }
 });
@@ -139,6 +186,7 @@ $('open').addEventListener('click', () => {
 chrome.storage.sync.get('fjSettings', (data) => {
   settings = normalize(data && data.fjSettings);
   render();
+  $('status').textContent = tr('checking');
   refreshLastAlert();
   refreshStatus();
 });
@@ -150,5 +198,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'sync' && changes.fjSettings) {
     settings = normalize(changes.fjSettings.newValue);
     render();
+    refreshStatus();
   }
 });

@@ -16,11 +16,19 @@
   var D = window.FJDetector;
   if (!D) return;
 
+  var I18N = window.FJI18N;
+  var lang = 'en';
+
+  function tr(key, vars) {
+    return I18N ? I18N.t(lang, key, vars) : key;
+  }
+
   var DEFAULT_SETTINGS = {
     enabled: true,
     sound: true,
     systemNotification: true,
     showStatus: true,
+    language: 'auto',
     keywords: []
   };
 
@@ -47,6 +55,9 @@
   var headlineEl = null;
   var metaEl = null;
   var pillEl = null;
+  var kickerEl = null;
+  var linkEl = null;
+  var closeEl = null;
   var bannerTimer = null;
   var pillTimer = null;
 
@@ -63,6 +74,7 @@
       sound: raw.sound !== false,
       systemNotification: raw.systemNotification !== false,
       showStatus: raw.showStatus !== false,
+      language: (raw.language === 'en' || raw.language === 'zh') ? raw.language : 'auto',
       keywords: keywords
     };
   }
@@ -72,9 +84,10 @@
       chrome.storage.sync.get('fjSettings', function (data) {
         if (chrome.runtime.lastError) return;
         settings = normalizeSettings(data && data.fjSettings);
+        lang = I18N ? I18N.resolve(settings.language) : 'en';
         enabled = settings.enabled;
         if (enabled) baseline();
-        updatePill();
+        if (shadow) applyUiLanguage(); else updatePill();
       });
     } catch (err) { /* extension context may be reloading */ }
   }
@@ -254,7 +267,8 @@
           time: alert.time,
           url: alert.url,
           sound: settings.sound,
-          systemNotification: settings.systemNotification
+          systemNotification: settings.systemNotification,
+          language: settings.language
         }
       }, function () {
         // Reading lastError prevents an unchecked-error warning after reload.
@@ -353,14 +367,14 @@
       '  <div class="body">',
       '    <div class="icon">!</div>',
       '    <div class="grow">',
-      '      <div class="kicker"><span class="dot"></span><span>RED NEWS · FinancialJuice</span></div>',
+      '      <div class="kicker"><span class="dot"></span><span class="kicker-text">RED NEWS · FinancialJuice</span></div>',
       '      <div class="headline"></div>',
-      '      <div class="meta"><span class="time"></span><a href="https://www.financialjuice.com/home" target="_blank" rel="noreferrer">查看原文</a></div>',
+      '      <div class="meta"><span class="time"></span><a href="https://www.financialjuice.com/home" target="_blank" rel="noreferrer">Open FinancialJuice</a></div>',
       '    </div>',
-      '    <button class="close" type="button" aria-label="关闭">×</button>',
+      '    <button class="close" type="button" aria-label="Close">×</button>',
       '  </div>',
       '</div>',
-      '<div class="pill" role="status"><span class="led"></span><span class="text">FJ 红色新闻监控</span></div>'
+      '<div class="pill" role="status"><span class="led"></span><span class="text">FJ monitoring</span></div>'
     ].join('');
 
     bannerEl = shadow.querySelector('.banner');
@@ -368,11 +382,25 @@
     headlineEl = shadow.querySelector('.headline');
     metaEl = shadow.querySelector('.meta .time');
     pillEl = shadow.querySelector('.pill');
+    kickerEl = shadow.querySelector('.kicker-text');
+    linkEl = shadow.querySelector('.meta a');
+    closeEl = shadow.querySelector('.banner .close');
 
-    shadow.querySelector('.banner .close').addEventListener('click', function () {
+    closeEl.addEventListener('click', function () {
       hideBanner();
     });
 
+    applyUiLanguage();
+  }
+
+  function applyUiLanguage() {
+    if (!shadow) return;
+    if (kickerEl) kickerEl.textContent = tr('redNewsKicker');
+    if (linkEl) linkEl.textContent = tr('viewSource');
+    if (closeEl) {
+      closeEl.setAttribute('aria-label', tr('close'));
+      closeEl.title = tr('close');
+    }
     updatePill();
   }
 
@@ -381,7 +409,7 @@
     host.setAttribute('data-fj-last-alert', alert.headline || '');
     host.setAttribute('data-fj-alerts', String(alertCount));
     headlineEl.textContent = alert.headline;
-    metaEl.textContent = alert.time || '刚刚';
+    metaEl.textContent = alert.time || tr('justNow');
     bannerEl.classList.add('show');
     flashEl.classList.remove('on');
     void flashEl.offsetWidth;
@@ -410,8 +438,8 @@
       host.setAttribute('data-fj-keywords', settings.keywords.join('|'));
     }
     var text = !enabled
-      ? 'FJ 监控已暂停'
-      : 'FJ 监控中' + (alertCount ? ' · 红色 ' + alertCount : '');
+      ? tr('pillPaused')
+      : tr('pillMonitoring') + (alertCount ? ' · ' + tr('pillRed', { n: alertCount }) : '');
     var label = pillEl.querySelector('.text');
     if (label) label.textContent = text;
 
@@ -436,9 +464,10 @@
   function onSettingsChanged(next) {
     var wasEnabled = enabled;
     settings = normalizeSettings(next);
+    lang = I18N ? I18N.resolve(settings.language) : 'en';
     enabled = settings.enabled;
     if (!wasEnabled && enabled) baseline();
-    updatePill();
+    if (shadow) applyUiLanguage(); else updatePill();
     if (enabled) scheduleScan(50);
   }
 
@@ -482,8 +511,8 @@
       if (msg.type === 'FJ_TEST') {
         var alert = {
           id: 'test-' + Date.now(),
-          headline: '测试告警：红色新闻监控已生效',
-          time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+          headline: tr('testHeadline'),
+          time: new Date().toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour12: false }),
           url: 'https://www.financialjuice.com/home',
           detectedAt: Date.now()
         };

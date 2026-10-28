@@ -9,15 +9,15 @@
 3. 通过 macOS 通知中心弹出系统通知；
 4. 在扩展图标上显示红色 `!` 角标。
 
-它只在 `https://www.financialjuice.com/home`（以及同域页面）打开时工作，不联网、不上传任何数据，也不执行任何交易操作。
+界面支持中英文切换。它只在 `https://www.financialjuice.com/home`（以及同域页面）打开时工作，不联网、不上传任何数据，也不执行任何交易操作。
 
 ## 效果
 
 下面是本地模拟新闻页上的测试效果（真实页面同样是顶部红色横幅）：
 
-![红色新闻横幅](docs/banner-test.png)
+![红色新闻横幅](docs/banner-zh.png)
 
-![设置面板](docs/popup.png)
+![设置面板](docs/popup-zh.png)
 
 ## 安装（只需一次）
 
@@ -41,6 +41,7 @@
 - **系统通知**：macOS 通知横幅。
 - **页面状态角标**：右下角显示 `FJ 监控中 · 红色 N`。
 - **关键词过滤**：例如 `NQ, 黄金, FOMC, CPI`。只有标题包含任一关键词的红色新闻才告警；留空表示全部红色新闻都告警。
+- **语言**：自动 / English / 简体中文。自动模式跟随浏览器界面语言。
 - **测试告警**：在 FinancialJuice 页面立即触发一次完整告警，用来确认声音、通知和横幅是否正常。
 
 ## 判定规则
@@ -86,12 +87,14 @@ FinancialJuice 把突发新闻渲染成：
 financialjuice-alert/
 ├── extension/            # 加载这个文件夹
 │   ├── manifest.json
+│   ├── i18n.js           # 中英文界面文案
 │   ├── detector.js       # 红色判定（可单测）
 │   ├── content.js        # DOM 监听、横幅、告警队列
 │   ├── background.js     # 系统通知、角标、声音调度
 │   ├── offscreen.html/js # 后台播放 alert.wav
 │   ├── popup.html/css/js # 设置面板
 │   ├── alert.wav
+│   ├── _locales/         # 扩展名称与描述的多语言资源
 │   └── icons/
 ├── test/                 # 本地模拟页与检测单测
 └── install.command

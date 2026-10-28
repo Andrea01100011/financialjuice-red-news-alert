@@ -26,7 +26,26 @@ body {
   padding: 15px 16px 13px;
   border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 11px; min-width: 0; flex: 1 1 auto; }
+.head-tools { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.lang-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(148, 163, 184, .1);
+  border: 1px solid var(--line);
+  color: #cbd5e1;
+  border-radius: 7px;
+  height: 26px;
+  width: 60px;
+  padding: 0 4px;
+  font: 600 10.5px/1 inherit;
+  text-align: center;
+  cursor: pointer;
+  outline: none;
+}
+.lang-select:hover { background: rgba(148, 163, 184, .16); }
+.lang-select:focus { border-color: rgba(225, 29, 72, .55); }
+.lang-select option { background: #121b2d; color: #e5e7eb; }
 .mark {
   width: 34px; height: 34px; border-radius: 10px;
   display: grid; place-items: center;
@@ -54,7 +73,7 @@ main { padding: 12px 14px 4px; }
 }
 .row {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 10px 0;
+  gap: 12px; padding: 8px 0;
   border-bottom: 1px solid rgba(148, 163, 184, .09);
   cursor: pointer;
 }
@@ -111,6 +130,6 @@ button:active { transform: translateY(1px); }
 .last-time { font-variant-numeric: tabular-nums; }
 #last { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: #dbe3ee; }
 footer {
-  padding: 11px 16px 14px; text-align: center;
+  padding: 9px 16px 11px; text-align: center;
   color: #64748b; font-size: 10px;
 }

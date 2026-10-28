@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "FJ Red News Alert",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "Alerts on red FinancialJuice headlines with sound, desktop notifications, and an on-page banner.",
+    "description": "Extension description"
+  },
+  "actionTitle": {
+    "message": "FJ Red News Alert",
+    "description": "Toolbar button title"
+  }
+}

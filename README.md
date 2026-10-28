@@ -9,15 +9,15 @@ A local Chrome extension that watches **FinancialJuice** and reacts the moment a
 3. Sends a macOS system notification.
 4. Adds a red `!` badge to the extension icon.
 
-It only runs while `https://www.financialjuice.com/home` (or another page on the same domain) is open. It makes no network requests, uploads no data, and never places trades. Settings are stored locally with `chrome.storage`.
+The interface supports English and Simplified Chinese. It only runs while `https://www.financialjuice.com/home` (or another page on the same domain) is open. It makes no network requests, uploads no data, and never places trades. Settings are stored locally with `chrome.storage`.
 
 ## Preview
 
 Screenshots from a local mock feed; the real page uses the same top banner:
 
-![Red news banner](docs/banner-test.png)
+![Red news banner](docs/banner-en.png)
 
-![Settings popup](docs/popup.png)
+![Settings popup](docs/popup-en.png)
 
 ## Install (one time)
 
@@ -41,6 +41,7 @@ Click the extension icon in the toolbar:
 - **System notification** — macOS Notification Center banner.
 - **Page status pill** — bottom-right indicator such as `FJ monitoring · red 3`.
 - **Keyword filter** — for example `NQ, gold, FOMC, CPI`. Only red headlines containing at least one keyword trigger an alert; leave it blank to alert on every red headline.
+- **Language** — Auto, English, or 简体中文. Auto follows the browser UI language.
 - **Test alert** — triggers a complete alert immediately on the FinancialJuice page, so you can verify sound, notification, and banner.
 
 ## Detection rules
@@ -86,12 +87,14 @@ Only red headlines that appear **after the extension starts** trigger an alert:
 financialjuice-alert/
 ├── extension/            # Load this folder in chrome://extensions
 │   ├── manifest.json
+│   ├── i18n.js           # English / Simplified Chinese UI strings
 │   ├── detector.js       # Red-headline detection (unit tested)
 │   ├── content.js        # DOM observer, banner, alert queue
 │   ├── background.js     # Notifications, badge, sound dispatch
 │   ├── offscreen.html/js # Plays alert.wav in the background
 │   ├── popup.html/css/js # Settings panel
 │   ├── alert.wav
+│   ├── _locales/         # Localized extension name and description
 │   └── icons/
 ├── test/                 # Local mock feed and unit tests
 └── install.command
