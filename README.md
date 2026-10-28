@@ -1,49 +1,51 @@
 # FJ Red News Alert
 
-一个本地 Chrome 扩展：当 **FinancialJuice** 页面出现红色新闻时，立即
+**English** | [简体中文](README.zh-CN.md)
 
-1. 在网页顶部弹出红色横幅（含新闻标题、时间、原文链接）；
-2. 播放三声提示音；
-3. 通过 macOS 通知中心弹出系统通知；
-4. 在扩展图标上显示红色 `!` 角标。
+A local Chrome extension that watches **FinancialJuice** and reacts the moment a red headline appears:
 
-它只在 `https://www.financialjuice.com/home`（以及同域页面）打开时工作，不联网、不上传任何数据，也不执行任何交易操作。
+1. Shows a red banner at the top of the page with the headline, time, and source link.
+2. Plays a three-tone alert sound.
+3. Sends a macOS system notification.
+4. Adds a red `!` badge to the extension icon.
 
-## 效果
+It only runs while `https://www.financialjuice.com/home` (or another page on the same domain) is open. It makes no network requests, uploads no data, and never places trades. Settings are stored locally with `chrome.storage`.
 
-下面是本地模拟新闻页上的测试效果（真实页面同样是顶部红色横幅）：
+## Preview
 
-![红色新闻横幅](docs/banner-test.png)
+Screenshots from a local mock feed; the real page uses the same top banner:
 
-![设置面板](docs/popup.png)
+![Red news banner](docs/banner-test.png)
 
-## 安装（只需一次）
+![Settings popup](docs/popup.png)
 
-双击 `install.command`，或在 Chrome 中手动操作：
+## Install (one time)
 
-1. 打开 `chrome://extensions`
-2. 打开右上角 **开发者模式**
-3. 点击 **加载已解压的扩展程序**
-4. 选择本目录下的 `extension` 文件夹
-5. 回到 FinancialJuice 页面，按 `⌘R` 刷新一次
-6. 建议点击浏览器工具栏的拼图图标，把 **FJ Red News Alert** 固定出来
+Requires Chrome/Chromium 109 or newer. Double-click `install.command`, or install manually:
 
-安装或更新扩展后，必须刷新 FinancialJuice 页面，内容脚本才会注入。
+1. Open `chrome://extensions`
+2. Enable **Developer mode** in the top-right corner
+3. Click **Load unpacked**
+4. Select the `extension` folder in this repository
+5. Return to FinancialJuice and press `⌘R` to reload the page
+6. Optional: pin **FJ Red News Alert** from the extensions menu
 
-## 使用
+The FinancialJuice tab must be reloaded after installing or updating the extension so the content script is injected.
 
-点击工具栏中的扩展图标：
+## Usage
 
-- **启用监控**：总开关。
-- **声音提醒**：三声提示音。
-- **系统通知**：macOS 通知横幅。
-- **页面状态角标**：右下角显示 `FJ 监控中 · 红色 N`。
-- **关键词过滤**：例如 `NQ, 黄金, FOMC, CPI`。只有标题包含任一关键词的红色新闻才告警；留空表示全部红色新闻都告警。
-- **测试告警**：在 FinancialJuice 页面立即触发一次完整告警，用来确认声音、通知和横幅是否正常。
+Click the extension icon in the toolbar:
 
-## 判定规则
+- **Enable monitoring** — master switch.
+- **Sound alert** — three-tone chime.
+- **System notification** — macOS Notification Center banner.
+- **Page status pill** — bottom-right indicator such as `FJ monitoring · red 3`.
+- **Keyword filter** — for example `NQ, gold, FOMC, CPI`. Only red headlines containing at least one keyword trigger an alert; leave it blank to alert on every red headline.
+- **Test alert** — triggers a complete alert immediately on the FinancialJuice page, so you can verify sound, notification, and banner.
 
-FinancialJuice 把突发新闻渲染成：
+## Detection rules
+
+FinancialJuice renders breaking headlines like this:
 
 ```html
 <div class="headline-item" data-headlineid="123">
@@ -51,69 +53,69 @@ FinancialJuice 把突发新闻渲染成：
 </div>
 ```
 
-`active` / `active-critical` 会被站点样式绘制成红色背景。扩展同时检查：
+`active` / `active-critical` are painted red by the site. The extension checks:
 
-- `.feedWrap` 是否带 `active` / `active-critical`；
-- 计算后的背景色是否属于红色（兼容站点改版）；
-- 排除蓝色的 `comm-news` 公司新闻。
+- whether `.feedWrap` has `active` / `active-critical`;
+- whether the computed background color is red (a fallback for site changes);
+- excludes blue `comm-news` company news.
 
-只有**扩展启动后新出现**的红色新闻才会告警：
+Only red headlines that appear **after the extension starts** trigger an alert:
 
-- 打开页面时已经存在的红色新闻会被当作基线，不会补报；
-- 切换新闻分类、加载历史列表造成的整批插入会被忽略；
-- 点击某条新闻导致的变红会被忽略，因为那是选中状态而不是新新闻。
+- red headlines already present when the page loads become the baseline and are not replayed;
+- bulk inserts caused by switching feeds or loading history are ignored;
+- a headline that turns red because it was clicked is ignored, since that is selection state rather than a new story.
 
-## 通知没有出现？
+## No notification?
 
-1. 打开 **系统设置 → 通知 → Google Chrome**，确认允许通知，并选择“横幅”或“提醒”。
-2. 检查 Chrome 是否静音、macOS 输出设备是否正常。
-3. 在 FinancialJuice 页面点击扩展图标 → **测试告警**。
-4. 如果提示“页面尚未连接”，刷新 FinancialJuice 页面；安装/更新扩展后也必须刷新。
-5. 红色新闻可能被关键词过滤掉了，检查关键词输入框。
+1. Open **System Settings → Notifications → Google Chrome**, allow notifications, and choose “Banners” or “Alerts”.
+2. Check that Chrome is not muted and that the macOS output device is working.
+3. On the FinancialJuice page, click the extension icon → **Test alert**.
+4. If it says the page is not connected, reload FinancialJuice. A reload is also required after installing or updating the extension.
+5. The headline may have been filtered out by keywords; check the keyword field.
 
-## 限制
+## Limitations
 
-- 页面必须保持打开。Chrome 将标签页“休眠/丢弃”后不会继续监控。建议固定该标签页，并在 Chrome「设置 → 性能 → 内存节省程序」中把 `financialjuice.com` 加入“始终保持这些网站处于活动状态”。
-- 它不是交易信号，只是新闻提醒；请自行判断。
-- 只支持 Chromium 内核浏览器（Chrome、Edge、Brave 等），macOS 通知体验最佳。
-- 扩展不读取或保存账号密码，只使用 `chrome.storage` 保存开关和关键词。
+- The page must stay open. If Chrome discards or sleeps the tab, monitoring stops. Pin the tab and add `financialjuice.com` to Chrome’s “Always keep these sites active” list under **Settings → Performance → Memory Saver**.
+- This is a news alert, not a trading signal. Use your own judgment.
+- Chromium-based browsers only (Chrome, Edge, Brave, etc.); the notification experience is best on macOS.
+- The extension never reads or stores credentials. It only uses `chrome.storage` for toggles and keywords.
 
-## 目录
+## Layout
 
 ```text
 financialjuice-alert/
-├── extension/            # 加载这个文件夹
+├── extension/            # Load this folder in chrome://extensions
 │   ├── manifest.json
-│   ├── detector.js       # 红色判定（可单测）
-│   ├── content.js        # DOM 监听、横幅、告警队列
-│   ├── background.js     # 系统通知、角标、声音调度
-│   ├── offscreen.html/js # 后台播放 alert.wav
-│   ├── popup.html/css/js # 设置面板
+│   ├── detector.js       # Red-headline detection (unit tested)
+│   ├── content.js        # DOM observer, banner, alert queue
+│   ├── background.js     # Notifications, badge, sound dispatch
+│   ├── offscreen.html/js # Plays alert.wav in the background
+│   ├── popup.html/css/js # Settings panel
 │   ├── alert.wav
 │   └── icons/
-├── test/                 # 本地模拟页与检测单测
+├── test/                 # Local mock feed and unit tests
 └── install.command
 ```
 
-## 本地测试
+## Local testing
 
-纯检测逻辑：
+Pure detection logic:
 
 ```bash
 node test/detector.test.js
 ```
 
-模拟新闻页（需要加载测试版扩展，匹配 `http://127.0.0.1:8899/*`）：
+Mock news feed (requires loading the test build, which matches `http://127.0.0.1:8899/*`):
 
 ```bash
 ./test/build-test-extension.sh
 python3 -m http.server 8899 -d test
-# 另一个终端用 Chrome 加载 test/extension-test，然后打开：
-# http://127.0.0.1:8899/mock.html
+# In another terminal, load test/extension-test as an unpacked extension,
+# then open http://127.0.0.1:8899/mock.html
 ```
 
-模拟页会在第 8 秒和第 10.4 秒各插入一条红色新闻。
+The mock page inserts a red headline at 8 seconds and another at 10.4 seconds.
 
-## 卸载
+## Uninstall
 
-`chrome://extensions` → FJ Red News Alert → **移除**。
+`chrome://extensions` → FJ Red News Alert → **Remove**.
