@@ -1,0 +1,5 @@
+test/extension-test/
+.DS_Store
+
+# Local archives
+*.zip

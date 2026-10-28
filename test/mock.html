@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FJ Feed Mock</title>
+<style>
+  body { font: 14px/1.45 -apple-system, Arial, sans-serif; background:#f3f4f6; margin:0; padding:20px; color:#111; }
+  h1 { font-size: 16px; }
+  #mainFeed { max-width: 760px; }
+  .headline-item { margin: 8px 0; }
+  .feedWrap { background:#fff; border:1px solid #ddd; border-radius:6px; padding:10px 14px; color:#242d38; }
+  .feedWrap.active, .feedWrap.active-critical { background:#b80101 !important; color:#fff !important; }
+  .feedWrap.active a, .feedWrap.active-critical a { color:#fff; }
+  .headline-title { margin:0 0 4px; font-size:14px; }
+  .time { font-size:11px; opacity:.75; }
+  .controls { position: fixed; right: 16px; bottom: 16px; display:flex; gap:8px; }
+  .controls button { padding:8px 10px; }
+</style>
+</head>
+<body>
+  <h1>FinancialJuice feed mock</h1>
+  <div id="mainFeed">
+    <div class="col-xs-12 infinite-item headline-item" data-headlineid="1">
+      <div class="media feedWrap"><h4 class="headline-title"><a href="#">Existing white headline one</a></h4><a class="time">09:30</a></div>
+    </div>
+    <div class="col-xs-12 infinite-item headline-item" data-headlineid="2">
+      <div class="media feedWrap"><h4 class="headline-title"><a href="#">Existing white headline two</a></h4><a class="time">09:31</a></div>
+    </div>
+    <div class="col-xs-12 infinite-item headline-item" data-headlineid="3">
+      <div class="media feedWrap"><h4 class="headline-title"><a href="#">Existing white headline three</a></h4><a class="time">09:32</a></div>
+    </div>
+  </div>
+  <div class="controls">
+    <button onclick="addItem('RED '+Date.now(), true)">Add red now</button>
+    <button onclick="addItem('WHITE '+Date.now(), false)">Add white now</button>
+  </div>
+<script>
+  let seq = 100;
+  function addItem(text, red) {
+    const wrap = document.createElement('div');
+    wrap.className = 'col-xs-12 infinite-item headline-item';
+    wrap.setAttribute('data-headlineid', String(seq++));
+    wrap.innerHTML = '<div class="media feedWrap ' + (red ? 'active' : '') + '">' +
+      '<h4 class="headline-title"><a href="#">' + text + '</a></h4>' +
+      '<a class="time">' + new Date().toLocaleTimeString('en-GB', {hour12:false}).slice(0,5) + '</a></div>';
+    document.getElementById('mainFeed').prepend(wrap);
+    return wrap;
+  }
+  window.addItem = addItem;
+  // Approximate the real site: clicking an item marks it active (red).
+  document.getElementById('mainFeed').addEventListener('click', (event) => {
+    const item = event.target.closest && event.target.closest('.headline-item');
+    if (!item) return;
+    const wrap = item.querySelector('.feedWrap');
+    if (wrap) wrap.classList.add('active');
+  });
+  setTimeout(() => addItem('Normal white news item', false), 1200);
+  setTimeout(() => addItem('BREAKING: US CPI MoM 0.4% vs 0.3% expected', true), 8000);
+  setTimeout(() => addItem('FOMC emergency statement released', true), 10400);
+</script>
+</body>
+</html>

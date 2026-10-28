@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FJ 红色新闻告警</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="head">
+    <div class="brand"><span class="mark">!</span><div><h1>FJ 红色新闻告警</h1><p id="status" class="status">检查中…</p></div></div>
+    <span id="led" class="led"></span>
+  </header>
+
+  <main>
+    <section class="card">
+      <label class="row">
+        <span class="row-copy"><b>启用监控</b><small>仅在 FinancialJuice 页面打开时工作</small></span>
+        <input id="enabled" class="switch" type="checkbox" checked>
+      </label>
+      <label class="row">
+        <span class="row-copy"><b>声音提醒</b><small>出现红色新闻时播放三声提示音</small></span>
+        <input id="sound" class="switch" type="checkbox" checked>
+      </label>
+      <label class="row">
+        <span class="row-copy"><b>系统通知</b><small>通过 macOS 通知中心弹出横幅</small></span>
+        <input id="systemNotification" class="switch" type="checkbox" checked>
+      </label>
+      <label class="row">
+        <span class="row-copy"><b>页面状态角标</b><small>右下角显示监控状态和红色新闻计数</small></span>
+        <input id="showStatus" class="switch" type="checkbox" checked>
+      </label>
+    </section>
+
+    <section class="card field">
+      <label for="keywords"><b>关键词过滤</b><span class="hint">可选</span></label>
+      <input id="keywords" type="text" placeholder="NQ, 黄金, FOMC, CPI；留空 = 全部红色新闻" autocomplete="off" spellcheck="false">
+      <p class="help" id="keywordHelp">留空时，任何新出现的红色新闻都会告警。</p>
+    </section>
+
+    <div class="actions">
+      <button id="test" class="primary" type="button">测试告警</button>
+      <button id="open" class="ghost" type="button">打开 FinancialJuice</button>
+    </div>
+
+    <section class="last">
+      <div class="last-head"><span>最近一条</span><span id="lastTime" class="last-time">—</span></div>
+      <p id="last">还没有捕获到红色新闻</p>
+    </section>
+  </main>
+
+  <footer>出现红色新闻 → 声音 + 系统通知 + 页面红色横幅</footer>
+  <script src="popup.js"></script>
+</body>
+</html>
