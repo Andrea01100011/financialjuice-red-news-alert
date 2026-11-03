@@ -5,6 +5,7 @@ const DEFAULTS = {
   sound: true,
   systemNotification: true,
   showStatus: true,
+  translate: false,
   language: 'auto',
   keywords: []
 };
@@ -31,6 +32,7 @@ function normalize(raw) {
     sound: raw.sound !== false,
     systemNotification: raw.systemNotification !== false,
     showStatus: raw.showStatus !== false,
+    translate: raw.translate === true,
     language: language,
     keywords: keywords.map((k) => String(k).trim()).filter(Boolean)
   };
@@ -74,6 +76,7 @@ function render() {
   $('sound').checked = settings.sound;
   $('systemNotification').checked = settings.systemNotification;
   $('showStatus').checked = settings.showStatus;
+  $('translate').checked = settings.translate;
   $('keywords').value = settings.keywords.join(', ');
   updateKeywordHelp();
 }
@@ -92,6 +95,7 @@ function readForm() {
     sound: $('sound').checked,
     systemNotification: $('systemNotification').checked,
     showStatus: $('showStatus').checked,
+    translate: $('translate').checked,
     language: $('language').value,
     keywords: $('keywords').value
   });
@@ -107,7 +111,7 @@ function readForm() {
   }
 }
 
-['enabled', 'sound', 'systemNotification', 'showStatus', 'language'].forEach((id) => {
+['enabled', 'sound', 'systemNotification', 'showStatus', 'translate', 'language'].forEach((id) => {
   $(id).addEventListener('change', readForm);
 });
 $('keywords').addEventListener('input', readForm);

@@ -4,7 +4,7 @@
     "description": "Extension name"
   },
   "extDescription": {
-    "message": "Alerts on red FinancialJuice headlines with sound, desktop notifications, and an on-page banner.",
+    "message": "Alerts on red FinancialJuice headlines with sound, desktop notifications, an on-page banner, and optional Chinese translation.",
     "description": "Extension description"
   },
   "actionTitle": {

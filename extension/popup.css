@@ -69,11 +69,11 @@ main { padding: 12px 14px 4px; }
   border: 1px solid var(--line);
   border-radius: 13px;
   padding: 4px 12px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .row {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 8px 0;
+  gap: 12px; padding: 5px 0;
   border-bottom: 1px solid rgba(148, 163, 184, .09);
   cursor: pointer;
 }
@@ -111,7 +111,7 @@ main { padding: 12px 14px 4px; }
 #keywords::placeholder { color: #64748b; }
 #keywords:focus { border-color: rgba(225, 29, 72, .55); box-shadow: 0 0 0 3px rgba(225, 29, 72, .1); }
 .help { margin: 7px 1px 0; color: var(--muted); font-size: 10.5px; }
-.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 2px 0 12px; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 1px 0 10px; }
 button {
   appearance: none; border: 0; border-radius: 10px;
   padding: 10px 12px; font: 650 12.5px/1.2 inherit; cursor: pointer;
@@ -130,6 +130,6 @@ button:active { transform: translateY(1px); }
 .last-time { font-variant-numeric: tabular-nums; }
 #last { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: #dbe3ee; }
 footer {
-  padding: 9px 16px 11px; text-align: center;
+  padding: 8px 16px 10px; text-align: center;
   color: #64748b; font-size: 10px;
 }

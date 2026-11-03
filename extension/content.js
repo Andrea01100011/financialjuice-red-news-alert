@@ -28,6 +28,7 @@
     sound: true,
     systemNotification: true,
     showStatus: true,
+    translate: false,
     language: 'auto',
     keywords: []
   };
@@ -53,6 +54,8 @@
   var bannerEl = null;
   var flashEl = null;
   var headlineEl = null;
+  var originalEl = null;
+  var currentAlert = null;
   var metaEl = null;
   var pillEl = null;
   var kickerEl = null;
@@ -74,6 +77,7 @@
       sound: raw.sound !== false,
       systemNotification: raw.systemNotification !== false,
       showStatus: raw.showStatus !== false,
+      translate: raw.translate === true,
       language: (raw.language === 'en' || raw.language === 'zh') ? raw.language : 'auto',
       keywords: keywords
     };
@@ -270,9 +274,12 @@
           systemNotification: settings.systemNotification,
           language: settings.language
         }
-      }, function () {
+      }, function (response) {
         // Reading lastError prevents an unchecked-error warning after reload.
         void chrome.runtime.lastError;
+        if (response && response.translatedHeadline) {
+          applyTranslation(alert.id, response.translatedHeadline);
+        }
       });
     } catch (err) {
       playFallbackSound();
@@ -343,6 +350,9 @@
       '.banner .headline{font-size:17px;line-height:1.45;font-weight:650;',
       'letter-spacing:.005em;word-break:break-word;max-height:5.1em;overflow:hidden;',
       'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}',
+      '.banner .original{display:none;font-size:12px;line-height:1.45;opacity:.78;',
+      'margin-top:5px;word-break:break-word;max-height:2.9em;overflow:hidden;',
+      '-webkit-line-clamp:2;-webkit-box-orient:vertical}',
       '.banner .meta{margin-top:8px;font-size:12px;opacity:.78;display:flex;gap:12px;align-items:center}',
       '.banner .meta a{color:#fff;text-decoration:underline;text-underline-offset:2px;font-weight:600}',
       '.banner .close{flex:0 0 auto;background:rgba(255,255,255,.14);border:0;color:#fff;',
@@ -369,6 +379,7 @@
       '    <div class="grow">',
       '      <div class="kicker"><span class="dot"></span><span class="kicker-text">RED NEWS · FinancialJuice</span></div>',
       '      <div class="headline"></div>',
+      '      <div class="original"></div>',
       '      <div class="meta"><span class="time"></span><a href="https://www.financialjuice.com/home" target="_blank" rel="noreferrer">Open FinancialJuice</a></div>',
       '    </div>',
       '    <button class="close" type="button" aria-label="Close">×</button>',
@@ -380,6 +391,7 @@
     bannerEl = shadow.querySelector('.banner');
     flashEl = shadow.querySelector('.flash');
     headlineEl = shadow.querySelector('.headline');
+    originalEl = shadow.querySelector('.original');
     metaEl = shadow.querySelector('.meta .time');
     pillEl = shadow.querySelector('.pill');
     kickerEl = shadow.querySelector('.kicker-text');
@@ -406,9 +418,18 @@
 
   function showBanner(alert) {
     ensureUi();
+    currentAlert = alert;
     host.setAttribute('data-fj-last-alert', alert.headline || '');
     host.setAttribute('data-fj-alerts', String(alertCount));
-    headlineEl.textContent = alert.headline;
+    if (alert.translatedHeadline) {
+      headlineEl.textContent = alert.translatedHeadline;
+      originalEl.textContent = alert.headline;
+      originalEl.style.display = '-webkit-box';
+    } else {
+      headlineEl.textContent = alert.headline;
+      originalEl.textContent = '';
+      originalEl.style.display = 'none';
+    }
     metaEl.textContent = alert.time || tr('justNow');
     bannerEl.classList.add('show');
     flashEl.classList.remove('on');
@@ -417,6 +438,15 @@
 
     clearTimeout(bannerTimer);
     bannerTimer = setTimeout(hideBanner, 15000);
+  }
+
+  function applyTranslation(id, translated) {
+    if (!translated || !currentAlert || currentAlert.id !== id) return;
+    currentAlert.translatedHeadline = translated;
+    headlineEl.textContent = translated;
+    originalEl.textContent = currentAlert.headline;
+    originalEl.style.display = '-webkit-box';
+    lastAlert = currentAlert;
   }
 
   function hideBanner() {

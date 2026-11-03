@@ -8,12 +8,13 @@ A local Chrome extension that watches **FinancialJuice** and reacts the moment a
 2. Plays a three-tone alert sound.
 3. Sends a macOS system notification.
 4. Adds a red `!` badge to the extension icon.
+5. Optionally translates the headline into Chinese, keeping the English original underneath.
 
-The interface supports English and Simplified Chinese. It only runs while `https://www.financialjuice.com/home` (or another page on the same domain) is open. It makes no network requests, uploads no data, and never places trades. Settings are stored locally with `chrome.storage`.
+The interface supports English and Simplified Chinese. It only runs while `https://www.financialjuice.com/home` (or another page on the same domain) is open. By default it makes no network requests; the optional Chinese translation sends the headline to MyMemory. It never places trades, and settings are stored locally with `chrome.storage`.
 
 ## Preview
 
-Screenshots from a local mock feed; the real page uses the same top banner:
+Screenshots from a local mock feed; the real page uses the same top banner. The popup includes an optional Chinese translation switch:
 
 ![Red news banner](docs/banner-en.png)
 
@@ -42,6 +43,7 @@ Click the extension icon in the toolbar:
 - **Page status pill** — bottom-right indicator such as `FJ monitoring · red 3`.
 - **Keyword filter** — for example `NQ, gold, FOMC, CPI`. Only red headlines containing at least one keyword trigger an alert; leave it blank to alert on every red headline.
 - **Language** — Auto, English, or 简体中文. Auto follows the browser UI language.
+- **Translate to Chinese** — optional. The headline is sent to MyMemory, and the banner/notification show the Chinese translation with the original English underneath. Off by default.
 - **Test alert** — triggers a complete alert immediately on the FinancialJuice page, so you can verify sound, notification, and banner.
 
 ## Detection rules
@@ -80,6 +82,7 @@ Only red headlines that appear **after the extension starts** trigger an alert:
 - This is a news alert, not a trading signal. Use your own judgment.
 - Chromium-based browsers only (Chrome, Edge, Brave, etc.); the notification experience is best on macOS.
 - The extension never reads or stores credentials. It only uses `chrome.storage` for toggles and keywords.
+- When **Translate to Chinese** is enabled, the headline text is sent to `api.mymemory.translated.net`. No other data is sent. MyMemory has a free daily quota and machine translation quality varies.
 
 ## Layout
 
