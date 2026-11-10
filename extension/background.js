@@ -1,8 +1,9 @@
 'use strict';
 
-importScripts('i18n.js');
+importScripts('i18n.js', 'translator.js');
 
 const I18N = self.FJI18N;
+const TR = self.FJTranslator;
 
 const DEFAULT_SETTINGS = {
   enabled: true,
@@ -10,22 +11,35 @@ const DEFAULT_SETTINGS = {
   systemNotification: true,
   showStatus: true,
   translate: false,
+  pageTranslate: false,
+  provider: 'mymemory',
+  apiKey: '',
+  model: 'deepseek-chat',
   language: 'auto',
   keywords: []
 };
 
 const ICON = 'icons/icon128.png';
 const FJ_URL = 'https://www.financialjuice.com/home';
-const TRANSLATE_ENDPOINT = 'https://api.mymemory.translated.net/get';
-const TRANSLATE_TIMEOUT_MS = 6000;
+const CACHE_LIMIT = 600;
 const translationCache = new Map();
+let cacheLoaded = false;
+let cachePromise = null;
+let cacheSaveTimer = null;
 let offscreenCreating = null;
 let badgeTimer = null;
+let lastTranslateError = null;
+let lastStatusKey = '';
 
 function getSettings() {
   return new Promise((resolve) => {
-    chrome.storage.sync.get('fjSettings', (data) => {
-      resolve(Object.assign({}, DEFAULT_SETTINGS, data && data.fjSettings));
+    chrome.storage.sync.get('fjSettings', async (data) => {
+      const settings = Object.assign({}, DEFAULT_SETTINGS, data && data.fjSettings);
+      try {
+        const local = await chrome.storage.local.get('fjApiKey');
+        if (local && local.fjApiKey) settings.apiKey = local.fjApiKey;
+      } catch (err) { /* keep the empty default */ }
+      resolve(settings);
     });
   });
 }
@@ -69,59 +83,73 @@ function truncate(text, max) {
   return value.length > max ? value.slice(0, max - 1) + '…' : value;
 }
 
-function decodeEntities(text) {
-  return text
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
-}
-
-function polishTranslation(text) {
-  return text
-    .replace(/^突破[：:]\s*/, '突发：')
-    .replace(/联邦公开市场委员会/g, 'FOMC')
-    .replace(/消费者价格指数/g, 'CPI')
-    .replace(/生产者价格指数/g, 'PPI')
-    .replace(/国内生产总值/g, 'GDP')
-    .replace(/FOMC(?=[\u4e00-\u9fff])/g, 'FOMC ')
-    .replace(/\s+([，。；：！？])/g, '$1')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-}
-
-async function translateToChinese(text) {
-  const source = String(text || '').trim().slice(0, 500);
-  if (!source || /[\u4e00-\u9fff]/.test(source)) return null;
-  if (translationCache.has(source)) return translationCache.get(source);
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TRANSLATE_TIMEOUT_MS);
-  try {
-    const url = TRANSLATE_ENDPOINT +
-      '?q=' + encodeURIComponent(source) +
-      '&langpair=' + encodeURIComponent('en|zh-CN');
-    const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (!data || Number(data.responseStatus) !== 200 || data.quotaFinished) return null;
-
-    let translated = data.responseData && data.responseData.translatedText;
-    if (!translated || /MYMEMORY WARNING/i.test(translated)) return null;
-    translated = polishTranslation(decodeEntities(String(translated)));
-    if (!translated) return null;
-
-    if (translationCache.size >= 200) {
-      translationCache.delete(translationCache.keys().next().value);
-    }
-    translationCache.set(source, translated);
-    return translated;
-  } catch (err) {
-    return null;
-  } finally {
-    clearTimeout(timer);
+async function loadTranslationCache() {
+  if (cacheLoaded) return;
+  if (!cachePromise) {
+    cachePromise = (async () => {
+      try {
+        const stored = await chrome.storage.local.get('fjTranslationCache');
+        const data = stored && stored.fjTranslationCache;
+        if (data && typeof data === 'object') {
+          Object.entries(data).slice(-CACHE_LIMIT).forEach(([key, value]) => {
+            if (typeof value === 'string' && value) translationCache.set(key, value);
+          });
+        }
+      } catch (err) { /* ignore a broken cache */ }
+      cacheLoaded = true;
+    })();
   }
+  await cachePromise;
+}
+
+function scheduleCacheSave() {
+  clearTimeout(cacheSaveTimer);
+  cacheSaveTimer = setTimeout(() => {
+    try {
+      chrome.storage.local.set({ fjTranslationCache: Object.fromEntries(translationCache) });
+    } catch (err) { /* storage may be unavailable */ }
+  }, 800);
+}
+
+async function setTranslateStatus(status) {
+  const key = status.ok + '|' + status.provider + '|' + (status.error || '');
+  if (key === lastStatusKey) return;
+  lastStatusKey = key;
+  try { await chrome.storage.local.set({ lastTranslateStatus: status }); } catch (err) { /* ignore */ }
+}
+
+async function translateToChinese(text, settings) {
+  const source = TR.normalize(text);
+  if (!TR.isTranslatable(source)) return null;
+
+  const provider = settings.provider === 'deepseek' ? 'deepseek' : 'mymemory';
+  const model = settings.model || TR.DEFAULT_MODEL;
+  const key = TR.cacheKey(source, provider, model);
+
+  await loadTranslationCache();
+  if (translationCache.has(key)) return translationCache.get(key);
+
+  const result = await TR.translate(source, {
+    provider,
+    apiKey: settings.apiKey,
+    model,
+    timeoutMs: provider === 'deepseek' ? 12000 : 8000
+  });
+
+  if (!result.ok) {
+    lastTranslateError = result.error || 'unknown';
+    await setTranslateStatus({ ok: false, provider, error: lastTranslateError, at: Date.now() });
+    return null;
+  }
+
+  lastTranslateError = null;
+  if (translationCache.size >= CACHE_LIMIT) {
+    translationCache.delete(translationCache.keys().next().value);
+  }
+  translationCache.set(key, result.text);
+  scheduleCacheSave();
+  await setTranslateStatus({ ok: true, provider, at: Date.now() });
+  return result.text;
 }
 
 function notificationOptions(payload, lang) {
@@ -195,25 +223,43 @@ async function handleAlert(payload) {
   const enriched = Object.assign({}, payload);
   const wantsTranslate = settings.translate === true && payload.translate !== false;
   const translationPromise = wantsTranslate
-    ? translateToChinese(payload.headline)
+    ? translateToChinese(payload.headline, settings)
     : Promise.resolve(null);
+
+  flashBadge();
+  const wantsSound = payload.sound !== false && settings.sound !== false;
+  if (wantsSound) void playSound();
+
+  // Give fast providers a short head start so the first notification is already
+  // Chinese. If the provider is slow, show English immediately and update it.
+  let translatedHeadline = null;
+  if (wantsTranslate) {
+    const waitMs = settings.provider === 'deepseek' ? 2500 : 1800;
+    translatedHeadline = await Promise.race([
+      translationPromise,
+      new Promise((resolve) => setTimeout(() => resolve(null), waitMs))
+    ]);
+  }
 
   const wantsNotify = payload.systemNotification !== false && settings.systemNotification !== false;
   let notificationId = null;
+  if (translatedHeadline) enriched.translatedHeadline = translatedHeadline;
   if (wantsNotify) notificationId = notify(enriched, lang);
-  flashBadge();
 
-  const wantsSound = payload.sound !== false && settings.sound !== false;
-  if (wantsSound) await playSound();
-
-  const translatedHeadline = await translationPromise;
-  if (translatedHeadline) {
-    enriched.translatedHeadline = translatedHeadline;
-    if (notificationId) updateNotification(notificationId, enriched, lang);
+  if (wantsTranslate && !translatedHeadline) {
+    const later = await translationPromise;
+    if (later) {
+      enriched.translatedHeadline = later;
+      if (notificationId) updateNotification(notificationId, enriched, lang);
+    }
   }
   await rememberAlert(enriched);
 
-  return { ok: true, translatedHeadline: translatedHeadline };
+  return {
+    ok: true,
+    translatedHeadline: enriched.translatedHeadline || null,
+    translateError: enriched.translatedHeadline ? null : lastTranslateError
+  };
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -224,6 +270,43 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       (result) => sendResponse(result || { ok: true }),
       (err) => sendResponse({ ok: false, error: String(err) })
     );
+    return true;
+  }
+
+  if (msg.type === 'FJ_TRANSLATE_TEXT') {
+    getSettings().then((settings) => translateToChinese(msg.text || '', settings)).then(
+      (translated) => sendResponse({
+        ok: Boolean(translated),
+        text: translated || '',
+        error: translated ? null : lastTranslateError
+      }),
+      (err) => sendResponse({ ok: false, text: '', error: String(err && err.message || err) })
+    );
+    return true;
+  }
+
+  if (msg.type === 'FJ_TRANSLATE_TEST') {
+    getSettings().then(async (settings) => {
+      const provider = settings.provider === 'deepseek' ? 'deepseek' : 'mymemory';
+      const started = Date.now();
+      const result = await TR.translate('US CPI MoM 0.4% vs 0.3% expected', {
+        provider,
+        apiKey: settings.apiKey,
+        model: settings.model || TR.DEFAULT_MODEL,
+        timeoutMs: provider === 'deepseek' ? 12000 : 8000
+      });
+      const payload = {
+        ok: Boolean(result.ok),
+        text: result.text || '',
+        error: result.ok ? null : (result.error || 'unknown'),
+        provider,
+        latency: Date.now() - started
+      };
+      await setTranslateStatus({ ok: payload.ok, provider, error: payload.error, at: Date.now() });
+      sendResponse(payload);
+    }).catch((err) => sendResponse({
+      ok: false, error: String(err && err.message || err), provider: 'unknown', latency: 0
+    }));
     return true;
   }
 

@@ -6,6 +6,10 @@ const DEFAULTS = {
   systemNotification: true,
   showStatus: true,
   translate: false,
+  pageTranslate: false,
+  provider: 'mymemory',
+  apiKey: '',
+  model: 'deepseek-chat',
   language: 'auto',
   keywords: []
 };
@@ -33,6 +37,10 @@ function normalize(raw) {
     systemNotification: raw.systemNotification !== false,
     showStatus: raw.showStatus !== false,
     translate: raw.translate === true,
+    pageTranslate: raw.pageTranslate === true,
+    provider: raw.provider === 'deepseek' ? 'deepseek' : 'mymemory',
+    apiKey: typeof raw.apiKey === 'string' ? raw.apiKey : '',
+    model: typeof raw.model === 'string' && raw.model ? raw.model : 'deepseek-chat',
     language: language,
     keywords: keywords.map((k) => String(k).trim()).filter(Boolean)
   };
@@ -77,15 +85,33 @@ function render() {
   $('systemNotification').checked = settings.systemNotification;
   $('showStatus').checked = settings.showStatus;
   $('translate').checked = settings.translate;
+  $('pageTranslate').checked = settings.pageTranslate;
+  $('provider').value = settings.provider;
+  $('apiKey').value = settings.apiKey;
+  $('apiKeyWrap').hidden = settings.provider !== 'deepseek';
   $('keywords').value = settings.keywords.join(', ');
   updateKeywordHelp();
 }
 
+function persist() {
+  const jobs = [];
+  try {
+    const synced = Object.assign({}, settings);
+    delete synced.apiKey; // never put the key in synced storage
+    jobs.push(chrome.storage.sync.set({ fjSettings: synced }));
+  } catch (err) { /* ignore */ }
+  try { jobs.push(chrome.storage.local.set({ fjApiKey: settings.apiKey || '' })); } catch (err) { /* ignore */ }
+  return Promise.all(jobs);
+}
+
 function save() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    chrome.storage.sync.set({ fjSettings: settings });
-  }, 120);
+  saveTimer = setTimeout(persist, 140);
+}
+
+function saveNow() {
+  clearTimeout(saveTimer);
+  return persist();
 }
 
 function readForm() {
@@ -96,6 +122,10 @@ function readForm() {
     systemNotification: $('systemNotification').checked,
     showStatus: $('showStatus').checked,
     translate: $('translate').checked,
+    pageTranslate: $('pageTranslate').checked,
+    provider: $('provider').value,
+    apiKey: $('apiKey').value.trim(),
+    model: settings.model || 'deepseek-chat',
     language: $('language').value,
     keywords: $('keywords').value
   });
@@ -103,6 +133,7 @@ function readForm() {
   $('language').value = settings.language;
   updateKeywordHelp();
   save();
+  $('apiKeyWrap').hidden = settings.provider !== 'deepseek';
 
   if (previousLanguage !== settings.language) {
     $('status').textContent = tr('checking');
@@ -111,10 +142,12 @@ function readForm() {
   }
 }
 
-['enabled', 'sound', 'systemNotification', 'showStatus', 'translate', 'language'].forEach((id) => {
+['enabled', 'sound', 'systemNotification', 'showStatus', 'translate', 'pageTranslate', 'provider', 'language'].forEach((id) => {
   $(id).addEventListener('change', readForm);
 });
 $('keywords').addEventListener('input', readForm);
+$('apiKey').addEventListener('input', readForm);
+$('apiKey').addEventListener('blur', saveNow);
 
 function setStatus(text, state) {
   $('status').textContent = text;
@@ -187,17 +220,92 @@ $('open').addEventListener('click', () => {
   chrome.tabs.create({ url: 'https://www.financialjuice.com/home' });
 });
 
-chrome.storage.sync.get('fjSettings', (data) => {
+const TR_ERROR_KEYS = {
+  quota: 'trErrQuota',
+  'missing-key': 'trErrMissingKey',
+  'bad-key': 'trErrBadKey',
+  timeout: 'trErrTimeout',
+  network: 'trErrNetwork',
+  'rate-limit': 'trErrRateLimit',
+  'not-needed': 'trErrNotNeeded',
+  empty: 'trErrEmpty'
+};
+
+function trError(code) {
+  const key = TR_ERROR_KEYS[code] || 'trErrUnknown';
+  const text = tr(key);
+  return code && !TR_ERROR_KEYS[code] ? text + ' (' + code + ')' : text;
+}
+
+function providerLabel(p) {
+  return p === 'deepseek' ? 'DeepSeek' : 'MyMemory';
+}
+
+function setTranslateStatus(text, state) {
+  const el = $('translateStatus');
+  el.textContent = text;
+  el.className = 'tr-status' + (state ? ' ' + state : '');
+}
+
+async function refreshTranslateStatus() {
+  try {
+    const data = await chrome.storage.local.get('lastTranslateStatus');
+    const st = data && data.lastTranslateStatus;
+    if (!st) { setTranslateStatus(''); return; }
+    if (st.ok) {
+      setTranslateStatus(tr('trLastOk', { provider: providerLabel(st.provider) }), 'ok');
+    } else {
+      setTranslateStatus(tr('trLastFailed', { error: trError(st.error) }), 'err');
+    }
+  } catch (err) { /* ignore */ }
+}
+
+$('testTranslate').addEventListener('click', async () => {
+  $('testTranslate').disabled = true;
+  setTranslateStatus(tr('trTesting'));
+  await saveNow();
+  chrome.runtime.sendMessage({ type: 'FJ_TRANSLATE_TEST' }, (res) => {
+    $('testTranslate').disabled = false;
+    if (chrome.runtime.lastError || !res) {
+      setTranslateStatus(trError('network'), 'err');
+      return;
+    }
+    if (res.ok) {
+      const preview = String(res.text || '').slice(0, 46);
+      setTranslateStatus(tr('trOk', {
+        provider: providerLabel(res.provider),
+        ms: res.latency
+      }) + ' · ' + preview, 'ok');
+    } else {
+      setTranslateStatus(trError(res.error), 'err');
+    }
+  });
+});
+
+window.addEventListener('pagehide', saveNow);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveNow();
+});
+
+chrome.storage.sync.get('fjSettings', async (data) => {
   settings = normalize(data && data.fjSettings);
+  try {
+    const local = await chrome.storage.local.get('fjApiKey');
+    settings.apiKey = (local && local.fjApiKey) || '';
+  } catch (err) { /* ignore */ }
   render();
   $('status').textContent = tr('checking');
   refreshLastAlert();
+  refreshTranslateStatus();
   refreshStatus();
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && (changes.lastAlert || changes.alertCount)) {
     refreshLastAlert();
+  }
+  if (area === 'local' && changes.lastTranslateStatus) {
+    refreshTranslateStatus();
   }
   if (area === 'sync' && changes.fjSettings) {
     settings = normalize(changes.fjSettings.newValue);

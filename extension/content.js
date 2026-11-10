@@ -29,6 +29,7 @@
     systemNotification: true,
     showStatus: true,
     translate: false,
+    pageTranslate: false,
     language: 'auto',
     keywords: []
   };
@@ -63,6 +64,9 @@
   var closeEl = null;
   var bannerTimer = null;
   var pillTimer = null;
+  var pageQueue = [];
+  var pageBusy = 0;
+  var pageTimer = null;
 
   function normalizeSettings(raw) {
     raw = raw || {};
@@ -78,6 +82,7 @@
       systemNotification: raw.systemNotification !== false,
       showStatus: raw.showStatus !== false,
       translate: raw.translate === true,
+      pageTranslate: raw.pageTranslate === true,
       language: (raw.language === 'en' || raw.language === 'zh') ? raw.language : 'auto',
       keywords: keywords
     };
@@ -92,6 +97,7 @@
         enabled = settings.enabled;
         if (enabled) baseline();
         if (shadow) applyUiLanguage(); else updatePill();
+        schedulePageTranslate(250);
       });
     } catch (err) { /* extension context may be reloading */ }
   }
@@ -126,6 +132,7 @@
     var addedItems = 0;
 
     mutations.forEach(function (m) {
+      if (m.target && m.target.closest && m.target.closest('.fj-page-tr')) return;
       if (m.type === 'attributes') {
         if (m.target && m.target.closest && m.target.closest('.headline-item')) {
           relevant = true;
@@ -166,6 +173,7 @@
     }
 
     scheduleScan(70);
+    schedulePageTranslate(180);
   }
 
   function scheduleScan(delay) {
@@ -480,6 +488,128 @@
     }, 4200);
   }
 
+  /* ---------------------------------------------------------- page translation */
+  var PAGE_QUEUE_GAP_MS = 420;
+  var PAGE_TR_STYLE_ID = 'fj-page-tr-style';
+
+  function ensurePageTranslationStyle() {
+    if (document.getElementById(PAGE_TR_STYLE_ID)) return;
+    var style = document.createElement('style');
+    style.id = PAGE_TR_STYLE_ID;
+    style.textContent =
+      '.fj-page-tr{margin:6px 10px 11px;padding:7px 11px;border-left:2px solid rgba(225,29,72,.8);' +
+      'border-radius:0 7px 7px 0;background:rgba(255,255,255,.055);' +
+      'box-shadow:inset 0 0 0 1px rgba(148,163,184,.12);color:inherit;opacity:.9;' +
+      'font:12.5px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans SC",sans-serif;' +
+      'letter-spacing:.1px;white-space:normal;word-break:break-word}' +
+      '.fj-page-tr[data-pending="1"]{opacity:.5}' +
+      '.fj-page-tr[data-kind="body"]{font-size:12px;opacity:.8;margin-top:-6px}';
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  function clearPageTranslations() {
+    pageQueue.length = 0;
+    Array.prototype.forEach.call(document.querySelectorAll('.fj-page-tr'), function (el) {
+      el.remove();
+    });
+  }
+
+  function queuePageBlock(item, sourceEl, text, kind) {
+    var T = window.FJTranslator;
+    if (!T || !T.isTranslatable(text)) return;
+    var anchor = sourceEl.closest('.feedWrap') || item;
+    var block = item.querySelector('.fj-page-tr[data-kind="' + kind + '"]');
+    if (!block) {
+      block = document.createElement('div');
+      block.className = 'fj-page-tr';
+      block.dataset.kind = kind;
+      if (anchor && anchor.parentElement) anchor.insertAdjacentElement('afterend', block);
+      else item.appendChild(block);
+    }
+    // Both title and body blocks are after .feedWrap; keep the title first.
+    if (kind === 'body') {
+      var titleBlock = item.querySelector('.fj-page-tr[data-kind="title"]');
+      if (titleBlock && titleBlock.nextSibling !== block && block.previousElementSibling !== titleBlock) {
+        titleBlock.insertAdjacentElement('afterend', block);
+      }
+    }
+    if (block.dataset.src === text) return;
+    block.dataset.src = text;
+    block.dataset.pending = '1';
+    block.textContent = '翻译中…';
+    pageQueue.push({ block: block, text: text });
+    pumpPageQueue();
+  }
+
+  function translateOneItem(item) {
+    if (!settings.pageTranslate || !item || !item.isConnected) return;
+
+    var title = item.querySelector('.headline-title, .headline-title-nolink');
+    var titleText = '';
+    if (title) {
+      titleText = String(title.innerText || title.textContent || '')
+        .replace(/\s+/g, ' ').trim();
+      queuePageBlock(item, title, titleText, 'title');
+    }
+
+    var content = item.querySelector('.headline-content');
+    if (content && (!title || !title.contains(content))) {
+      var bodyText = String(content.innerText || content.textContent || '')
+        .replace(/\s+/g, ' ').trim();
+      if (bodyText && bodyText !== titleText) {
+        queuePageBlock(item, content, bodyText, 'body');
+      }
+    }
+  }
+
+  function pumpPageQueue() {
+    if (!settings.pageTranslate) {
+      pageQueue.length = 0;
+      return;
+    }
+    if (pageBusy >= 2) return;
+    var job = pageQueue.shift();
+    if (!job) return;
+    if (!job.block || !job.block.isConnected) {
+      pumpPageQueue();
+      return;
+    }
+    pageBusy += 1;
+    try {
+      chrome.runtime.sendMessage({ type: 'FJ_TRANSLATE_TEXT', text: job.text }, function (res) {
+        void chrome.runtime.lastError;
+        pageBusy = Math.max(0, pageBusy - 1);
+        if (job.block && job.block.isConnected) {
+          delete job.block.dataset.pending;
+          if (res && res.ok && res.text) {
+            job.block.textContent = res.text;
+            job.block.title = job.text;
+          } else {
+            job.block.remove();
+          }
+        }
+        setTimeout(pumpPageQueue, PAGE_QUEUE_GAP_MS);
+      });
+    } catch (err) {
+      pageBusy = Math.max(0, pageBusy - 1);
+      if (job.block) job.block.remove();
+    }
+  }
+
+  function translateWholePage() {
+    if (!settings.pageTranslate) {
+      clearPageTranslations();
+      return;
+    }
+    ensurePageTranslationStyle();
+    allItems().forEach(translateOneItem);
+  }
+
+  function schedulePageTranslate(delay) {
+    clearTimeout(pageTimer);
+    pageTimer = setTimeout(translateWholePage, delay || 150);
+  }
+
   function startObserver() {
     if (observer) observer.disconnect();
     observer = new MutationObserver(onMutations);
@@ -499,6 +629,7 @@
     if (!wasEnabled && enabled) baseline();
     if (shadow) applyUiLanguage(); else updatePill();
     if (enabled) scheduleScan(50);
+    schedulePageTranslate(80);
   }
 
   // Clicking an item adds .active on the site; that is selection, not news.
@@ -554,6 +685,7 @@
 
   loadSettings();
   startObserver();
+  schedulePageTranslate(700);
   baseline();
   setInterval(scan, 30000);
   setTimeout(function () { updatePill(); }, 600);

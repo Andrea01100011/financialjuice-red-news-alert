@@ -8,7 +8,7 @@ import json
 p='test/extension-test/manifest.json'
 m=json.load(open(p))
 m['content_scripts'][0]['matches']=['http://127.0.0.1:8899/*']
-m['host_permissions']=['http://127.0.0.1:8899/*']
+m['host_permissions']=['http://127.0.0.1:8899/*','https://api.mymemory.translated.net/*','https://api.deepseek.com/*']
 m['web_accessible_resources'][0]['matches']=['http://127.0.0.1:8899/*']
 json.dump(m,open(p,'w'),ensure_ascii=False,indent=2)
 PY

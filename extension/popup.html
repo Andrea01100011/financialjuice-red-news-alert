@@ -38,9 +38,29 @@
         <input id="showStatus" class="switch" type="checkbox" checked>
       </label>
       <label class="row">
-        <span class="row-copy"><b data-i18n="translateToChinese">Translate to Chinese</b><small data-i18n="translateToChineseDesc">Machine translation via MyMemory</small></span>
+        <span class="row-copy"><b data-i18n="translateToChinese">Translate to Chinese</b><small data-i18n="translateToChineseDesc">Machine translation for alerts and banners</small></span>
         <input id="translate" class="switch" type="checkbox">
       </label>
+      <label class="row">
+        <span class="row-copy"><b data-i18n="pageTranslate">Translate the whole page</b><small data-i18n="pageTranslateDesc">Chinese under every news item, including new ones</small></span>
+        <input id="pageTranslate" class="switch" type="checkbox">
+      </label>
+    </section>
+
+    <section class="card field">
+      <label for="provider" data-i18n="translationEngine">Translation engine</label>
+      <select id="provider" class="select">
+        <option value="mymemory" data-i18n="providerMyMemory">MyMemory · free</option>
+        <option value="deepseek" data-i18n="providerDeepSeek">DeepSeek · API key</option>
+      </select>
+      <div id="apiKeyWrap" class="key-wrap" hidden>
+        <input id="apiKey" type="password" data-i18n-placeholder="apiKeyPlaceholder" placeholder="sk-..." autocomplete="off" spellcheck="false">
+        <p class="help" data-i18n="apiKeyHelp">Stored locally, used only for translation.</p>
+      </div>
+      <div class="tr-test-row">
+        <button id="testTranslate" class="ghost" type="button" data-i18n="testTranslation">Test translation</button>
+        <span id="translateStatus" class="tr-status"></span>
+      </div>
     </section>
 
     <section class="card field">
